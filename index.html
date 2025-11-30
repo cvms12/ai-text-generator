@@ -350,9 +350,8 @@
             const loadingId = addLoadingIndicator();
             scrollToBottom();
 
-            // Mock AI Generation Logic
-            // This is where we simulate the AI response
-            const responseText = await generateMockResponse(text);
+            // Real AI Generation Logic
+            const responseText = await fetchGeminiResponse(text);
 
             // Remove loading, start streaming
             removeMessage(loadingId);
@@ -435,57 +434,44 @@
             container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
         }
 
-        // --- Mock AI Logic & Streaming ---
+        // --- Gemini API Logic ---
         
-        // A simple function to generate plausible-looking tech jargon or basic responses
-        async function generateMockResponse(input) {
-            // Artificial delay to feel like "thinking"
-            await new Promise(r => setTimeout(r, 800));
-
-            const lowerInput = input.toLowerCase();
-
-            if (lowerInput.includes('code') || lowerInput.includes('function') || lowerInput.includes('script') || lowerInput.includes('html')) {
-                return `Here is an example of code based on your request:
-
-\`\`\`javascript
-// A simple function to process data
-function processData(data) {
-    if (!data) return null;
-    
-    return data.map(item => {
-        return {
-            id: item.id,
-            value: item.value * 2,
-            timestamp: new Date().toISOString()
-        };
-    });
-}
-
-const input = [{id: 1, value: 10}, {id: 2, value: 20}];
-console.log(processData(input));
-\`\`\`
-
-This code maps over an array and transforms the objects. Let me know if you need specific logic!`;
-            }
+        async function fetchGeminiResponse(prompt) {
+            const apiKey = ""; // The execution environment provides the key at runtime
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
             
-            if (lowerInput.includes('hello') || lowerInput.includes('hi')) {
-                return "Hello! I am a simulated AI running entirely in your browser using HTML, CSS, and JavaScript. How can I help you today?";
+            const payload = {
+                contents: [{ parts: [{ text: prompt }] }]
+            };
+
+            // Retry logic: 5 attempts with exponential backoff (1s, 2s, 4s, 8s, 16s)
+            const delays = [1000, 2000, 4000, 8000, 16000];
+            
+            for (let i = 0; i <= delays.length; i++) {
+                try {
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        // Throw to trigger retry logic
+                        throw new Error(`API Error: ${response.status}`);
+                    }
+
+                    const data = await response.json();
+                    return data.candidates?.[0]?.content?.parts?.[0]?.text || "I couldn't generate a response.";
+                    
+                } catch (error) {
+                    // If this was the last attempt, return a user-friendly error
+                    if (i === delays.length) {
+                        return "I'm having trouble connecting to the AI service right now. Please check your internet connection or try again later.";
+                    }
+                    // Wait before retrying
+                    await new Promise(resolve => setTimeout(resolve, delays[i]));
+                }
             }
-
-            if (lowerInput.includes('who are you')) {
-                return "I am a clone of the GPT interface, built to demonstrate front-end capabilities using Tailwind CSS and vanilla JavaScript. I don't have a real brain connected to the internet, but I can pretend pretty well!";
-            }
-
-            // Default Lorem Ipsum-ish response for everything else
-            return `I understand you're asking about "${input}". Since I am a front-end simulation, I cannot process complex reasoning, but I can show you how markdown renders!
-
-Here is a list of features I support:
-* **Bold text** and *Italic text*
-* Code blocks with syntax highlighting
-* Responsive mobile design
-* Dark/Light mode toggling
-
-Feel free to try asking for "code" to see the syntax highlighting in action.`;
         }
 
         function streamResponse(messageId, fullText) {
