@@ -1,94 +1,86 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>AI Text Generator – Phi-Mini (REAL In-Browser Model)</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WebLLM Phi-mini Demo (CDN)</title>
   <style>
-    body{margin:0;font-family:Inter,system-ui;background:#0a0f1c;color:#eaf0ff;padding:24px}
-    .box{max-width:900px;margin:auto;background:#11182b;padding:24px;border-radius:14px;box-shadow:0 0 20px rgba(0,0,0,0.4)}
-    textarea{width:100%;min-height:140px;background:#0c1324;color:#fff;border:1px solid #222b40;border-radius:8px;padding:12px;font-size:15px}
-    button{background:#6d4aff;border:none;padding:10px 16px;border-radius:8px;color:white;cursor:pointer;font-size:15px}
-    #output{background:#0c1324;border:1px solid #222b40;margin-top:16px;padding:16px;min-height:120px;border-radius:8px;white-space:pre-wrap}
-    .row{display:flex;gap:10px;margin-top:10px}
-    .muted{font-size:13px;color:#9ca7c7;margin-top:6px}
+    body { font-family: Inter, system-ui, sans-serif; background:#0b1220; color:#e6eef6; padding:28px; }
+    .card { max-width:880px; margin:0 auto; padding:22px; border-radius:12px; background:linear-gradient(180deg,#071028,#071424); box-shadow:0 8px 30px rgba(0,0,0,0.6); }
+    textarea { width:100%; min-height:140px; padding:12px; border-radius:8px; border:1px solid rgba(255,255,255,0.04); background:rgba(255,255,255,0.02); color:inherit; }
+    button { background:#7c3aed; border:none; color:white; padding:10px 14px; border-radius:10px; cursor:pointer; }
+    #output { white-space:pre-wrap; margin-top:12px; padding:12px; border-radius:8px; background:rgba(255,255,255,0.01); min-height:140px; border:1px solid rgba(255,255,255,0.02); }
+    .muted { color:#9aa4b2; font-size:13px; }
   </style>
 </head>
 <body>
-<div class="box">
-  <h2>Phi-Mini In-Browser AI Text Generator</h2>
-  <p class="muted">Runs entirely in your browser using <b>Transformers.js</b> (Xenova) with the real <b>phi-1.5-mini</b> model. No API key. No backend. 100% free.</p>
-
-  <textarea id="prompt">Write a short paragraph explaining why indoor plants improve mental health.</textarea>
-
-  <div class="row">
-    <button onclick="generate()">Generate</button>
-    <button onclick="copyText()" style="background:#2b3148">Copy</button>
+  <div class="card">
+    <h2>WebLLM Demo (CDN Model)</h2>
+    <p class="muted">Uses a free, open-source model hosted on a CDN. Runs fully in browser with WebGPU.</p>
+    <textarea id="prompt">Write a short paragraph about the benefits of indoor plants.</textarea>
+    <div style="margin-top:10px; display:flex; gap:8px; align-items:center;">
+      <button id="generateBtn">Generate</button>
+      <button id="clearBtn" style="background:#2b3148">Clear</button>
+      <div style="flex:1"></div>
+      <div id="status" class="muted">Status: idle</div>
+    </div>
+    <div id="output">— output appears here —</div>
   </div>
 
-  <p class="muted" id="status">Loading model… (first load may take 5–15 seconds)</p>
-
-  <div id="output">— output will appear here —</div>
-</div>
-
 <script type="module">
-import { pipeline } from "https://cdn.jsdelivr.net/npm/@xenova/transformers/dist/transformers.min.js";
+import * as webllm from "https://esm.run/@mlc-ai/web-llm";
 
-let generator = null;
-let loaded = false;
+const status = (t) => { document.getElementById('status').innerText = 'Status: ' + t; };
 
-async function loadModel(){
-  if (loaded) return;
-  try {
-    document.getElementById('status').innerText = 'Downloading Phi-mini model…';
+let engine = null;
+let modelReady = false;
 
-    generator = await pipeline(
-      "text-generation",
-      "Xenova/phi-1_5-mini"
-    );
+// CDN-hosted open-source Phi-mini model
+const MODEL_CDN = "https://huggingface.co/llm-foundation/phi-1_5-mini/resolve/main/"; // example, free model CDN
 
-    loaded = true;
-    document.getElementById('status').innerText = 'Model loaded ✔ Ready to generate.';
-
-  } catch(err){
-    document.getElementById('status').innerText = 'Error loading model.';
-    console.error(err);
-  }
+async function initEngine() {
+  if (engine) return engine;
+  status('Initializing WebLLM engine…');
+  engine = await webllm.CreateWebWorkerMLCEngine({
+    model: MODEL_CDN,
+    device: 'webgpu',
+    num_worker_threads: 1
+  });
+  status('Engine ready — loading model...');
+  modelReady = true;
+  status('Model loaded ✔ Ready');
+  return engine;
 }
 
-loadModel();
-
-async function generate(){
-  const prompt = document.getElementById('prompt').value.trim();
-  if(!prompt) return;
-
-  await loadModel();
-  document.getElementById('status').innerText = 'Generating…';
+async function generate(prompt) {
+  if (!prompt) return;
   document.getElementById('output').innerText = 'Thinking…';
-
   try {
-    const out = await generator(prompt, {
-      max_new_tokens: 150,
-      temperature: 0.7,
-      top_p: 0.9,
+    await initEngine();
+    status('Generating…');
+    const response = await engine.chat.completions.create({
+      model: MODEL_CDN,
+      messages: [{ role: "user", content: prompt }],
+      max_tokens: 200,
+      temperature: 0.7
     });
-
-    const text = out[0].generated_text;
+    const text = response?.choices?.[0]?.message?.content || 'No output';
     document.getElementById('output').innerText = text;
-    document.getElementById('status').innerText = 'Done ✔';
-
-  } catch(err){
-    console.log(err);
-    document.getElementById('output').innerText = 'Error generating text.';
-    document.getElementById('status').innerText = 'Error.';
+    status('Done ✔');
+  } catch(err) {
+    console.error(err);
+    document.getElementById('output').innerText = 'Generation error: ' + (err?.message || err);
+    status('Error — see console');
   }
 }
 
-function copyText(){
-  const txt = document.getElementById('output').innerText;
-  navigator.clipboard.writeText(txt);
-  alert('Copied');
-}
+document.getElementById('generateBtn').addEventListener('click', async () => {
+  const p = document.getElementById('prompt').value.trim();
+  await generate(p);
+});
+document.getElementById('clearBtn').addEventListener('click', () => {
+  document.getElementById('output').innerText = '— output appears here —';
+});
 </script>
 </body>
 </html>
