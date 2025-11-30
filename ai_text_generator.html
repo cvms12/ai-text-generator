@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>AI Text Generator – Phi-Mini (REAL In-Browser Model)</title>
+  <style>
+    body{margin:0;font-family:Inter,system-ui;background:#0a0f1c;color:#eaf0ff;padding:24px}
+    .box{max-width:900px;margin:auto;background:#11182b;padding:24px;border-radius:14px;box-shadow:0 0 20px rgba(0,0,0,0.4)}
+    textarea{width:100%;min-height:140px;background:#0c1324;color:#fff;border:1px solid #222b40;border-radius:8px;padding:12px;font-size:15px}
+    button{background:#6d4aff;border:none;padding:10px 16px;border-radius:8px;color:white;cursor:pointer;font-size:15px}
+    #output{background:#0c1324;border:1px solid #222b40;margin-top:16px;padding:16px;min-height:120px;border-radius:8px;white-space:pre-wrap}
+    .row{display:flex;gap:10px;margin-top:10px}
+    .muted{font-size:13px;color:#9ca7c7;margin-top:6px}
+  </style>
+</head>
+<body>
+<div class="box">
+  <h2>Phi-Mini In-Browser AI Text Generator</h2>
+  <p class="muted">Runs entirely in your browser using <b>Transformers.js</b> (Xenova) with the real <b>phi-1.5-mini</b> model. No API key. No backend. 100% free.</p>
+
+  <textarea id="prompt">Write a short paragraph explaining why indoor plants improve mental health.</textarea>
+
+  <div class="row">
+    <button onclick="generate()">Generate</button>
+    <button onclick="copyText()" style="background:#2b3148">Copy</button>
+  </div>
+
+  <p class="muted" id="status">Loading model… (first load may take 5–15 seconds)</p>
+
+  <div id="output">— output will appear here —</div>
+</div>
+
+<script type="module">
+import { pipeline } from "https://cdn.jsdelivr.net/npm/@xenova/transformers/dist/transformers.min.js";
+
+let generator = null;
+let loaded = false;
+
+async function loadModel(){
+  if (loaded) return;
+  try {
+    document.getElementById('status').innerText = 'Downloading Phi-mini model…';
+
+    generator = await pipeline(
+      "text-generation",
+      "Xenova/phi-1_5-mini"
+    );
+
+    loaded = true;
+    document.getElementById('status').innerText = 'Model loaded ✔ Ready to generate.';
+
+  } catch(err){
+    document.getElementById('status').innerText = 'Error loading model.';
+    console.error(err);
+  }
+}
+
+loadModel();
+
+async function generate(){
+  const prompt = document.getElementById('prompt').value.trim();
+  if(!prompt) return;
+
+  await loadModel();
+  document.getElementById('status').innerText = 'Generating…';
+  document.getElementById('output').innerText = 'Thinking…';
+
+  try {
+    const out = await generator(prompt, {
+      max_new_tokens: 150,
+      temperature: 0.7,
+      top_p: 0.9,
+    });
+
+    const text = out[0].generated_text;
+    document.getElementById('output').innerText = text;
+    document.getElementById('status').innerText = 'Done ✔';
+
+  } catch(err){
+    console.log(err);
+    document.getElementById('output').innerText = 'Error generating text.';
+    document.getElementById('status').innerText = 'Error.';
+  }
+}
+
+function copyText(){
+  const txt = document.getElementById('output').innerText;
+  navigator.clipboard.writeText(txt);
+  alert('Copied');
+}
+</script>
+</body>
+</html>
