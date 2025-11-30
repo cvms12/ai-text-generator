@@ -41,10 +41,9 @@ const MODEL_CDN = "https://huggingface.co/llm-foundation/phi-1_5-mini/resolve/ma
 async function initEngine() {
   if (engine) return engine;
   status('Initializing WebLLM engine…');
-  engine = await webllm.CreateWebWorkerMLCEngine({
+  engine = await webllm.CreateMLCEngine({
     model: MODEL_CDN,
     device: 'webgpu',
-    num_worker_threads: 1
   });
   status('Engine ready — loading model...');
   modelReady = true;
